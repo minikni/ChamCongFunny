@@ -61,11 +61,26 @@ st.write("---")
 
 # Hàm gửi API lên Grist
 def send_to_grist(data_records):
+    # Đường dẫn chuẩn phải là: SERVER_URL + "/api/docs/" + DOC_ID + "/tables/Timesheets/records"
     url = f"{SERVER_URL}/api/docs/{DOC_ID}/tables/Timesheets/records"
-    headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-    payload = {"records": [{"fields": data_records}]}
-    return requests.post(url, headers=headers, json=payload)
-
+    
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # Grist bắt buộc gói tin phải nằm trong danh mục mảng 'records' chứa các 'fields'
+    payload = {
+        "records": [
+            {
+                "fields": data_records
+            }
+        ]
+    }
+    
+    # Thực hiện gửi lệnh POST lên đám mây hệ thống
+    response = requests.post(url, headers=headers, json=payload)
+    return response
 col1, col2 = st.columns(2)
 
 # Khóa hoặc mở nút bấm dựa trên biến kiểm tra gps_valid
