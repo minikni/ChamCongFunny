@@ -4,119 +4,133 @@ from datetime import datetime
 from streamlit_js_eval import get_geolocation
 import math
 
-# 1. CẤU HÌNH THÔNG TIN GRIST
+# 1. CẤU HÌNH THÔNG TIN GRIST (Nhớ sửa ://getgrist.com và điền Key thật)
 API_KEY = "f087f7a700bfe490fe00c7b5e760295d803bc022"     
-DOC_ID = "tBW1Wgjnvzsj"       
+DOC_ID = "tBW1Wgjnvzsj"  # Sử dụng mã ID chính xác từ file log của bạn
 SERVER_URL = "https://docs.getgrist.com"
 
-# 2. CẤU HÌNH TỌA ĐỘ GPS THỰC TẾ CỦA CỬA HÀNG (Ví dụ mẫu dưới đây ở TP.HCM)
-# Bạn hãy dùng Google Maps để lấy tọa độ chính xác của quán mình điền vào đây nhé
-SHOP_LAT = 10.8202429  
-SHOP_LON = 106.6743837  
-ALLOW_DISTANCE_METER = 50.0  # Khoảng cách tối đa cho phép chấm công (50 mét)
+# Thiết lập giao diện Web Mobile chuyên nghiệp
+st.set_page_config(page_title="Chấm Công Chuỗi Hệ Thống", layout="centered")
+st.markdown("<h2 style='text-align: center; color: #0288D1;'>🕒 CHẤM CÔNG CHUỖI CỬA HÀNG</h2>", unsafe_allow_html=True)
 
-# Hàm công thức Haversine tính khoảng cách giữa 2 điểm GPS (Trả về số mét)
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
+
+# 2. HÀM TỰ ĐỘNG TẢI DANH SÁCH CỬA HÀNG TỪ BẢNG 'SHOPS' TRÊN GRIST
+@st.cache_data(ttl=600)  # Lưu bộ nhớ đệm 10 phút để tối ưu tốc độ app
+def fetch_shops():
+    try:
+        url = f"{SERVER_URL}/api/docs/{DOC_ID}/tables/Shops/records"
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            records = res.json().get("records", [])
+            # Trả về danh sách dict chứa ID dòng trên Grist, Tên quán và Tọa độ GPS
+            return [
+                {
+                    "row_id": r["id"],
+                    "shop_name": r["fields"]["Shop_Name"],
+                    "lat": r["fields"]["Latitude"],
+                    "lon": r["fields"]["Longitude"]
+                } for r in records if "fields" in r
+            ]
+    except Exception:
+        return []
+    return []
+
+# Tải danh sách cửa hàng lên giao diện
+list_shops = fetch_shops()
+
+# Công thức tính khoảng cách vị trí (Haversine)
 def calculate_distance(lat1, lon1, lat2, lon2):
-    R = 6371000 # Bán kính Trái Đất tính bằng mét
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
+    R = 6371000  # Mét
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)
     delta_lambda = math.radians(lon2 - lon1)
-    
     a = math.sin(delta_phi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return R * c
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
-# Thiết lập giao diện Web Mobile
-st.set_page_config(page_title="Chấm Công GPS Bảo Mật", layout="centered")
-st.markdown("<h2 style='text-align: center; color: #E65100;'>📍 CHẤM CÔNG XÁC THỰC VỊ TRÍ</h2>", unsafe_allow_html=True)
+# --- GIAO DIỆN NHẬP LIỆU ---
+emp_email = st.text_input("✉️ Nhập Email đăng nhập của bạn:", placeholder="vi-du: nhanvienA@gmail.com")
 
-# LẤY TỌA ĐỘ GPS TỪ ĐIỆN THOẠI NHÂN VIÊN
-with st.spinner("🌍 Đang xác thực vị trí GPS của bạn..."):
+# Hiển thị hộp lựa chọn cơ sở thông minh (Lấy động từ bảng Shops trên Grist)
+if list_shops:
+    shop_options = {s["shop_name"]: s for s in list_shops}
+    selected_shop_name = st.selectbox("🏬 Bạn đang làm việc tại cơ sở nào?", list(shop_options.keys()))
+    selected_shop_data = shop_options[selected_shop_name]
+else:
+    st.error("❌ Không thể tải danh sách cửa hàng. Vui lòng cấu hình bảng 'Shops' trên Grist trước.")
+    st.stop()
+
+st.write("---")
+
+# --- XÁC THỰC GPS DỰA TRÊN CƠ SỞ ĐƯỢC CHỌN ---
+with st.spinner("🌍 Đang xác thực vị trí GPS..."):
     location = get_geolocation()
 
 gps_valid = False
 distance = 999999.0
+ALLOW_DISTANCE_METER = 50.0  # Cho phép trong bán kính 50m
 
 if location and 'coords' in location:
     user_lat = location['coords']['latitude']
     user_lon = location['coords']['longitude']
     
-    # Tính khoảng cách từ nhân viên tới quán
-    distance = calculate_distance(user_lat, user_lon, SHOP_LAT, SHOP_LON)
+    # Tính khoảng cách từ nhân viên tới CHÍNH XÁC cửa hàng được chọn trên danh sách
+    distance = calculate_distance(user_lat, user_lon, selected_shop_data["lat"], selected_shop_data["lon"])
     
     if distance <= ALLOW_DISTANCE_METER:
-        st.success(f"✅ Vị trí hợp lệ! Bạn đang ở trong khu vực cửa hàng (Cách: {round(distance, 1)}m)")
+        st.success(f"✅ Hợp lệ! Bạn đang ở {selected_shop_name} (Cách: {round(distance, 1)}m)")
         gps_valid = True
     else:
-        st.error(f"❌ Vị trí không hợp lệ! Bạn đang ở cách cửa hàng {round(distance, 1)}m. Khoảng cách cho phép tối đa là {ALLOW_DISTANCE_METER}m.")
+        st.error(f"❌ Sai vị trí! Bạn đang cách {selected_shop_name} {round(distance, 1)}m (Tối đa {ALLOW_DISTANCE_METER}m).")
 else:
-    st.warning("⚠️ Điện thoại của bạn chưa bật GPS hoặc chưa cấp quyền truy cập vị trí cho trình duyệt. Vui lòng cho phép truy cập vị trí để bấm chấm công.")
+    st.warning("⚠️ Vui lòng cấp quyền vị trí (GPS) trên điện thoại để mở khóa nút chấm công.")
 
-# Giao diện nhập thông tin
-emp_name = st.text_input("👤 Họ và Tên Nhân Viên:")
-emp_email = st.text_input("✉️ Email Đăng Nhập:")
-
-st.write("---")
-
-# Hàm gửi API lên Grist
-def send_to_grist(data_records):
-    # Đường dẫn chuẩn phải là: SERVER_URL + "/api/docs/" + DOC_ID + "/tables/Timesheets/records"
+# Hàm gửi bản ghi lên Grist
+def send_to_grist(fields_data):
     url = f"{SERVER_URL}/api/docs/{DOC_ID}/tables/Timesheets/records"
-    
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    # Grist bắt buộc gói tin phải nằm trong danh mục mảng 'records' chứa các 'fields'
-    payload = {
-        "records": [
-            {
-                "fields": data_records
-            }
-        ]
-    }
-    
-    # Thực hiện gửi lệnh POST lên đám mây hệ thống
-    response = requests.post(url, headers=headers, json=payload)
-    return response
+    payload = {"records": [{"fields": fields_data}]}
+    return requests.post(url, headers=headers, json=payload)
+
+# --- KHU VỰC THAO TÁC ---
 col1, col2 = st.columns(2)
 
-# Khóa hoặc mở nút bấm dựa trên biến kiểm tra gps_valid
 with col1:
-    if st.button("🔴 BẮM CHECK-IN", use_container_width=True, type="primary", disabled=not gps_valid):
-        if emp_name and emp_email:
+    if st.button("🔴 CHECK IN", use_container_width=True, type="primary", disabled=not gps_valid):
+        if emp_email:
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # KHỚP NỐI DỮ LIỆU: Điền Email và Số ID dòng của Cửa hàng để Grist tự kết nối mối quan hệ
             fields = {
-                "Employee_Name": emp_name,
-                "Email": emp_email,
+                "Employee": emp_email, 
+                "Shop": selected_shop_data["row_id"], # Gửi ID dòng (Integer) của cửa hàng
                 "Clock_In": now_str,
-                "Manager_Confirm": f"Pending (GPS OK - {round(distance,1)}m)"
+                "Manager_Confirm": "Pending"
             }
             res = send_to_grist(fields)
             if res.status_code == 200:
-                st.success("🎉 Check-in thành công!")
+                st.success("🎉 Check-in ca làm thành công!")
                 st.balloons()
             else:
                 st.error(f"Lỗi: {res.text}")
         else:
-            st.warning("Vui lòng điền đủ thông tin!")
+            st.warning("Vui lòng điền Email đăng nhập!")
 
 with col2:
-    if st.button("🟢 BẮM CHECK-OUT", use_container_width=True, disabled=not gps_valid):
-        if emp_name and emp_email:
+    if st.button("🟢 CHECK OUT", use_container_width=True, disabled=not gps_valid):
+        if emp_email:
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             fields = {
-                "Employee_Name": emp_name,
-                "Email": emp_email,
+                "Employee": emp_email,
+                "Shop": selected_shop_data["row_id"],
                 "Clock_Out": now_str,
-                "Manager_Confirm": f"Pending (GPS OK - {round(distance,1)}m)"
+                "Manager_Confirm": "Pending"
             }
             res = send_to_grist(fields)
             if res.status_code == 200:
-                st.success("✅ Check-out thành công!")
+                st.success("✅ Check-out ca làm thành công!")
             else:
                 st.error(f"Lỗi: {res.text}")
         else:
-            st.warning("Vui lòng điền đủ thông tin!")
+            st.warning("Vui lòng điền Email đăng nhập!")
