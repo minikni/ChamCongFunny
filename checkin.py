@@ -7,7 +7,7 @@ import math
 # 1. CẤU HÌNH THÔNG TIN GRIST
 API_KEY = "f087f7a700bfe490fe00c7b5e760295d803bc022"     
 DOC_ID = "tBW1Wgjnvzsj"       
-SERVER_URL = "https://getgrist.com"
+SERVER_URL = "https://docs.getgrist.com"
 
 # 2. CẤU HÌNH TỌA ĐỘ GPS THỰC TẾ CỦA CỬA HÀNG (Ví dụ mẫu dưới đây ở TP.HCM)
 # Bạn hãy dùng Google Maps để lấy tọa độ chính xác của quán mình điền vào đây nhé
