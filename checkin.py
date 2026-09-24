@@ -19,23 +19,35 @@ headers = {
 }
 
 # 2. HÀM TỰ ĐỘNG TẢI DANH SÁCH CỬA HÀNG TỪ BẢNG 'SHOPS' TRÊN GRIST
-@st.cache_data(ttl=600)  # Lưu bộ nhớ đệm 10 phút để tối ưu tốc độ app
+@st.cache_data(ttl=10)  
 def fetch_shops():
     try:
         url = f"{SERVER_URL}/api/docs/{DOC_ID}/tables/Shops/records"
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
             records = res.json().get("records", [])
-            # Trả về danh sách dict chứa ID dòng trên Grist, Tên quán và Tọa độ GPS
-            return [
-                {
-                    "row_id": r["id"],
-                    "shop_name": r["fields"]["Shop_Name"],
-                    "lat": r["fields"]["Latitude"],
-                    "lon": r["fields"]["Longitude"]
-                } for r in records if "fields" in r
-            ]
-    except Exception:
+            
+            cleaned_shops = []
+            for r in records:
+                if "fields" in r:
+                    fields = r["fields"]
+                    try:
+                        # ÉP KIỂU TỰ ĐỘNG: Chuyển dữ liệu vĩ độ/kinh độ từ chuỗi chữ (String) sang số thập phân (Float)
+                        lat_val = float(fields.get("Latitude", 0))
+                        lon_val = float(fields.get("Longitude", 0))
+                        
+                        cleaned_shops.append({
+                            "row_id": r["id"],
+                            "shop_name": fields.get("Shop_Name", "Cửa hàng không tên"),
+                            "lat": lat_val,
+                            "lon": lon_val
+                        })
+                    except (ValueError, TypeError):
+                        # Bỏ qua dòng dữ liệu này nếu tọa độ bị nhập lỗi chữ/ký tự không hợp lệ
+                        continue
+            return cleaned_shops
+    except Exception as e:
+        print(f"🚨 [FETCH ERROR]: {str(e)}")
         return []
     return []
 
