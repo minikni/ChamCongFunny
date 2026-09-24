@@ -102,7 +102,7 @@ else:
 
 # Hàm gửi bản ghi lên Grist
 def send_to_grist(fields_data):
-    url = f"{SERVER_URL}/api/docs/{DOC_ID}/tables/Timesheets/records"
+    url = f"{SERVER_URL}/api/docs/{DOC_ID}/tables/Timesheets2/records"
     payload = {"records": [{"fields": fields_data}]}
     return requests.post(url, headers=headers, json=payload)
 
